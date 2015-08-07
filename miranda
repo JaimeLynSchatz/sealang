@@ -1,0 +1,27 @@
+Why Functional Programming Matters
+===================================
+
+newton raphson algorithm
+
+read more in the paper about this
+differentiation and integration - similar pattern, different generator and selector
+example iwht a game engine with min and max engines
+
+Look up coroutines - like a thread, but a light weight thread??? "Stackless resumable functions" Koa uses them for it's Javascript server.
+T J Holowaychuk wrote about this in Javascript. He's a Go fan now.
+
+Putting the Dream Machine to Work
+check out the slides on the Sealang forum
+
+What has stopped lazy evaluation from really kicking off? Bits and pieces of it have been picked up and developed into lotso of languages.
+
+Skynet will be written in a functional language - it has to be able to modify its own functions.
+
+Type Systems - Part II
+
+chava in he she and it
+
+need to go over tomas' paper again
+
+simon payton jones bank contract, dsl for writing swaps and bonds - find that paper
+composing contracts, an adventure in engineering
