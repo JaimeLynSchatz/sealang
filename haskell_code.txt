@@ -1,0 +1,1129 @@
+import Control.Monad.Instances
+import Data.List
+import Data.Char
+import Data.Maybe
+import Text.Printf
+import System.Environment
+import Text.Regex.Posix
+ 
+-- First, three helpers
+io f = interact (unlines . f . lines)
+ 
+showln  = (++ "\n") . show
+ 
+regexBool r l = l =~ r :: Bool -- simple boolean regex matching
+ 
+-- remove duplicate lines from a file (like uniq)
+uniq    = nub   -- Warning: Unix uniq discards *consecutive* dupes,
+                -- but 'nub' discards all dupes.
+ 
+-- repeat the input file infinitely
+rpt     = cycle
+ 
+-- Return the head -10 line of a file
+take'   = take 10
+ 
+-- Remove the first 10 lines of a file
+drop'   = drop 10
+ 
+-- Return the head -1 line of a file
+head'   = head
+ 
+-- Return the tail -1 line of a file
+tail'   = last
+ 
+-- return the last ten lines of a file
+tail10  = drop =<< subtract 10 . length
+ 
+-- Reverse lines in a file (tac)
+tac     = reverse
+ 
+-- Reverse characters on each line (rev)
+rev     = map reverse
+ 
+-- Reverse words on each line
+rev_w   = map (unwords . reverse . words)
+ 
+-- Count number of characters in a file (like wc -c)
+wc_c    = showln . length
+ 
+-- Count number of lines in a file, like wc -l
+wc_l    = showln . length . lines
+ 
+-- Count number of words in a file (like wc -w)
+wc_w    = showln . length . words
+ 
+-- double space a file
+space   = intersperse ""
+ 
+-- undo double space
+unspace = filter (not.null)
+ 
+-- remove the first occurrence of the line "str"
+remove  = delete
+ 
+-- make a string all upper case
+upper   = map toUpper
+ 
+-- remove leading space from each line
+clean   = map (dropWhile isSpace)
+ 
+-- remove trailing whitespace
+clean'  = map (reverse . dropWhile isSpace . reverse)
+ 
+-- delete leading and trailing whitespace
+clean'' = map (f . f)
+    where f = reverse . dropWhile isSpace
+ 
+-- insert blank space at beginning of each line
+blank   = map (s ++)
+     where s = replicate 8 ' '
+ 
+-- join lines of a file
+join = return . concat
+ 
+-- Translate the letter 'e' to '*', like tr 'e' '*' (or y// in sed)
+tr a b = interact (map f)
+    where f c = if c == a then b else c
+ 
+-- Delete characters from a string.
+tr_d a = tr a ' '
+ 
+-- lines matching the regular expression "[bf]oo" from a file
+grep = filter (regexBool "[bf]oo")
+ 
+-- lines not matching the regular expression "[bf]oo" from a file
+grep_v  = filter (not . regexBool "[bf]oo")
+ 
+-- number each line of a file
+num  = zipWith (printf "%3d %s") [(1::Int)..]
+ 
+-- Compute a simple cksum of a file
+cksum   =  foldl' k 5381
+   where k h c = h * 33 + ord c
+ 
+-- And our main wrapper
+main = do
+    who <- getProgName
+    maybe (return ()) id $ lookup who $
+        [("blank",       io blank                  )
+        ,("cksum",       interact (showln . cksum) )
+        ,("clean",       io clean''                )
+        ,("echo" ,       interact id               )
+        ,("drop",        interact drop'            )
+        ,("grep",        io grep                   )
+        ,("grep -v",     io grep_v                 )
+        ,("head",        io (return . head')       )
+        ,("join",        io join                   )
+        ,("num",         io num                    )
+        ,("remove",      io (remove "str")         )
+        ,("revw",        io rev_w                  )
+        ,("reverse",     io rev                    )
+        ,("reverseword", io rev_w                  )
+        ,("rpt",         io rpt                    )
+        ,("sort",        interact sort             )
+        ,("space",       io space                  )
+        ,("tac",         interact tac              )
+        ,("take",        io take'                  )
+        ,("tail",        io (return . tail')       )
+    --  ,( "tr"  ,    interact tr)
+    --  ,( "tr -d",   interact (tr_d . unwords))
+        ,("unspace",     io unspace                )
+        ,("upper",       interact upper            )
+        ,("uniq",        interact uniq             )
+        ,("wc_c",        interact wc_c             )
+        ,("wc_l",        interact wc_l             )
+        ,("wc_w",        interact wc_w             )
+        ]
+
+{-# LANGUAGE CPP, NoImplicitPrelude, MagicHash #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Numeric
+-- Copyright   :  (c) The University of Glasgow 2002
+-- License     :  BSD-style (see the file libraries/base/LICENSE)
+-- 
+-- Maintainer  :  libraries@haskell.org
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- Odds and ends, mostly functions for reading and showing
+-- 'RealFloat'-like kind of values.
+--
+-----------------------------------------------------------------------------
+
+module Numeric (
+
+        -- * Showing
+
+        showSigned,       -- :: (Real a) => (a -> ShowS) -> Int -> a -> ShowS
+
+        showIntAtBase,    -- :: Integral a => a -> (a -> Char) -> a -> ShowS
+        showInt,          -- :: Integral a => a -> ShowS
+        showHex,          -- :: Integral a => a -> ShowS
+        showOct,          -- :: Integral a => a -> ShowS
+
+        showEFloat,       -- :: (RealFloat a) => Maybe Int -> a -> ShowS
+        showFFloat,       -- :: (RealFloat a) => Maybe Int -> a -> ShowS
+        showGFloat,       -- :: (RealFloat a) => Maybe Int -> a -> ShowS
+        showFloat,        -- :: (RealFloat a) => a -> ShowS
+
+        floatToDigits,    -- :: (RealFloat a) => Integer -> a -> ([Int], Int)
+
+        -- * Reading
+
+        -- | /NB:/ 'readInt' is the \'dual\' of 'showIntAtBase',
+        -- and 'readDec' is the \`dual\' of 'showInt'.
+        -- The inconsistent naming is a historical accident.
+
+        readSigned,       -- :: (Real a) => ReadS a -> ReadS a
+
+        readInt,          -- :: (Integral a) => a -> (Char -> Bool)
+                          --         -> (Char -> Int) -> ReadS a
+        readDec,          -- :: (Integral a) => ReadS a
+        readOct,          -- :: (Integral a) => ReadS a
+        readHex,          -- :: (Integral a) => ReadS a
+
+        readFloat,        -- :: (RealFloat a) => ReadS a
+
+        lexDigits,        -- :: ReadS String
+
+        -- * Miscellaneous
+
+        fromRat,          -- :: (RealFloat a) => Rational -> a
+
+        ) where
+
+#ifdef __GLASGOW_HASKELL__
+import GHC.Base
+import GHC.Read
+import GHC.Real
+import GHC.Float
+import GHC.Num
+import GHC.Show
+import Data.Maybe
+import Text.ParserCombinators.ReadP( ReadP, readP_to_S, pfail )
+import qualified Text.Read.Lex as L
+#else
+import Data.Char
+#endif
+
+#ifdef __HUGS__
+import Hugs.Prelude
+import Hugs.Numeric
+#endif
+
+#ifdef __GLASGOW_HASKELL__
+-- -----------------------------------------------------------------------------
+-- Reading
+
+-- | Reads an /unsigned/ 'Integral' value in an arbitrary base.
+readInt :: Num a
+  => a                  -- ^ the base
+  -> (Char -> Bool)     -- ^ a predicate distinguishing valid digits in this base
+  -> (Char -> Int)      -- ^ a function converting a valid digit character to an 'Int'
+  -> ReadS a
+readInt base isDigit valDigit = readP_to_S (L.readIntP base isDigit valDigit)
+
+-- | Read an unsigned number in octal notation.
+readOct :: Num a => ReadS a
+readOct = readP_to_S L.readOctP
+
+-- | Read an unsigned number in decimal notation.
+readDec :: Num a => ReadS a
+readDec = readP_to_S L.readDecP
+
+-- | Read an unsigned number in hexadecimal notation.
+-- Both upper or lower case letters are allowed.
+readHex :: Num a => ReadS a
+readHex = readP_to_S L.readHexP 
+
+-- | Reads an /unsigned/ 'RealFrac' value,
+-- expressed in decimal scientific notation.
+readFloat :: RealFrac a => ReadS a
+readFloat = readP_to_S readFloatP
+
+readFloatP :: RealFrac a => ReadP a
+readFloatP =
+  do tok <- L.lex
+     case tok of
+       L.Rat y  -> return (fromRational y)
+       L.Int i  -> return (fromInteger i)
+       _        -> pfail
+
+-- It's turgid to have readSigned work using list comprehensions,
+-- but it's specified as a ReadS to ReadS transformer
+-- With a bit of luck no one will use it.
+
+-- | Reads a /signed/ 'Real' value, given a reader for an unsigned value.
+readSigned :: (Real a) => ReadS a -> ReadS a
+readSigned readPos = readParen False read'
+                     where read' r  = read'' r ++
+                                      (do
+                                        ("-",s) <- lex r
+                                        (x,t)   <- read'' s
+                                        return (-x,t))
+                           read'' r = do
+                               (str,s) <- lex r
+                               (n,"")  <- readPos str
+                               return (n,s)
+
+-- -----------------------------------------------------------------------------
+-- Showing
+
+-- | Show /non-negative/ 'Integral' numbers in base 10.
+showInt :: Integral a => a -> ShowS
+showInt n0 cs0
+    | n0 < 0    = error "Numeric.showInt: can't show negative numbers"
+    | otherwise = go n0 cs0
+    where
+    go n cs
+        | n < 10    = case unsafeChr (ord '0' + fromIntegral n) of
+            c@(C# _) -> c:cs
+        | otherwise = case unsafeChr (ord '0' + fromIntegral r) of
+            c@(C# _) -> go q (c:cs)
+        where
+        (q,r) = n `quotRem` 10
+
+-- Controlling the format and precision of floats. The code that
+-- implements the formatting itself is in @PrelNum@ to avoid
+-- mutual module deps.
+
+{-# SPECIALIZE showEFloat ::
+        Maybe Int -> Float  -> ShowS,
+        Maybe Int -> Double -> ShowS #-}
+{-# SPECIALIZE showFFloat ::
+        Maybe Int -> Float  -> ShowS,
+        Maybe Int -> Double -> ShowS #-}
+{-# SPECIALIZE showGFloat ::
+        Maybe Int -> Float  -> ShowS,
+        Maybe Int -> Double -> ShowS #-}
+
+-- | Show a signed 'RealFloat' value
+-- using scientific (exponential) notation (e.g. @2.45e2@, @1.5e-3@).
+--
+-- In the call @'showEFloat' digs val@, if @digs@ is 'Nothing',
+-- the value is shown to full precision; if @digs@ is @'Just' d@,
+-- then at most @d@ digits after the decimal point are shown.
+showEFloat    :: (RealFloat a) => Maybe Int -> a -> ShowS
+
+-- | Show a signed 'RealFloat' value
+-- using standard decimal notation (e.g. @245000@, @0.0015@).
+--
+-- In the call @'showFFloat' digs val@, if @digs@ is 'Nothing',
+-- the value is shown to full precision; if @digs@ is @'Just' d@,
+-- then at most @d@ digits after the decimal point are shown.
+showFFloat    :: (RealFloat a) => Maybe Int -> a -> ShowS
+
+-- | Show a signed 'RealFloat' value
+-- using standard decimal notation for arguments whose absolute value lies 
+-- between @0.1@ and @9,999,999@, and scientific notation otherwise.
+--
+-- In the call @'showGFloat' digs val@, if @digs@ is 'Nothing',
+-- the value is shown to full precision; if @digs@ is @'Just' d@,
+-- then at most @d@ digits after the decimal point are shown.
+showGFloat    :: (RealFloat a) => Maybe Int -> a -> ShowS
+
+showEFloat d x =  showString (formatRealFloat FFExponent d x)
+showFFloat d x =  showString (formatRealFloat FFFixed d x)
+showGFloat d x =  showString (formatRealFloat FFGeneric d x)
+#endif  /* __GLASGOW_HASKELL__ */
+
+-- ---------------------------------------------------------------------------
+-- Integer printing functions
+
+-- | Shows a /non-negative/ 'Integral' number using the base specified by the
+-- first argument, and the character representation specified by the second.
+showIntAtBase :: Integral a => a -> (Int -> Char) -> a -> ShowS
+showIntAtBase base toChr n0 r0
+  | base <= 1 = error ("Numeric.showIntAtBase: applied to unsupported base " ++ show base)
+  | n0 <  0   = error ("Numeric.showIntAtBase: applied to negative number " ++ show n0)
+  | otherwise = showIt (quotRem n0 base) r0
+   where
+    showIt (n,d) r = seq c $ -- stricter than necessary
+      case n of
+        0 -> r'
+        _ -> showIt (quotRem n base) r'
+     where
+      c  = toChr (fromIntegral d)
+      r' = c : r
+
+-- | Show /non-negative/ 'Integral' numbers in base 16.
+showHex :: Integral a => a -> ShowS
+showHex = showIntAtBase 16 intToDigit
+
+-- | Show /non-negative/ 'Integral' numbers in base 8.
+showOct :: Integral a => a -> ShowS
+showOct = showIntAtBase 8  intToDigit
+
+{-# LANGUAGE CPP, NoImplicitPrelude, ScopedTypeVariables #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Foreign.Storable
+-- Copyright   :  (c) The FFI task force 2001
+-- License     :  see libraries/base/LICENSE
+-- 
+-- Maintainer  :  ffi@haskell.org
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- The module "Foreign.Storable" provides most elementary support for
+-- marshalling and is part of the language-independent portion of the
+-- Foreign Function Interface (FFI), and will normally be imported via
+-- the "Foreign" module.
+--
+-----------------------------------------------------------------------------
+
+module Foreign.Storable
+        ( Storable(
+             sizeOf,         -- :: a -> Int
+             alignment,      -- :: a -> Int
+             peekElemOff,    -- :: Ptr a -> Int      -> IO a
+             pokeElemOff,    -- :: Ptr a -> Int -> a -> IO ()
+             peekByteOff,    -- :: Ptr b -> Int      -> IO a
+             pokeByteOff,    -- :: Ptr b -> Int -> a -> IO ()
+             peek,           -- :: Ptr a             -> IO a
+             poke)           -- :: Ptr a        -> a -> IO ()
+        ) where
+
+
+#ifdef __NHC__
+import NHC.FFI (Storable(..),Ptr,FunPtr,StablePtr
+               ,Int8,Int16,Int32,Int64,Word8,Word16,Word32,Word64)
+#else
+
+import Control.Monad            ( liftM )
+
+#include "MachDeps.h"
+#include "HsBaseConfig.h"
+
+#ifdef __GLASGOW_HASKELL__
+import GHC.Storable
+import GHC.Stable       ( StablePtr )
+import GHC.IO()     -- Instance Monad IO
+import GHC.Num
+import GHC.Int
+import GHC.Word
+import GHC.Ptr
+import GHC.Err
+import GHC.Base
+#else
+import Data.Int
+import Data.Word
+import Foreign.StablePtr
+#endif
+
+#ifdef __HUGS__
+import Hugs.Prelude
+import Hugs.Ptr
+import Hugs.Storable
+#endif
+
+{- |
+The member functions of this class facilitate writing values of
+primitive types to raw memory (which may have been allocated with the
+above mentioned routines) and reading values from blocks of raw
+memory.  The class, furthermore, includes support for computing the
+storage requirements and alignment restrictions of storable types.
+
+Memory addresses are represented as values of type @'Ptr' a@, for some
+@a@ which is an instance of class 'Storable'.  The type argument to
+'Ptr' helps provide some valuable type safety in FFI code (you can\'t
+mix pointers of different types without an explicit cast), while
+helping the Haskell type system figure out which marshalling method is
+needed for a given pointer.
+
+All marshalling between Haskell and a foreign language ultimately
+boils down to translating Haskell data structures into the binary
+representation of a corresponding data structure of the foreign
+language and vice versa.  To code this marshalling in Haskell, it is
+necessary to manipulate primitive data types stored in unstructured
+memory blocks.  The class 'Storable' facilitates this manipulation on
+all types for which it is instantiated, which are the standard basic
+types of Haskell, the fixed size @Int@ types ('Int8', 'Int16',
+'Int32', 'Int64'), the fixed size @Word@ types ('Word8', 'Word16',
+'Word32', 'Word64'), 'StablePtr', all types from "Foreign.C.Types",
+as well as 'Ptr'.
+
+Minimal complete definition: 'sizeOf', 'alignment', one of 'peek',
+'peekElemOff' and 'peekByteOff', and one of 'poke', 'pokeElemOff' and
+'pokeByteOff'.
+-}
+
+class Storable a where
+
+   sizeOf      :: a -> Int
+   -- ^ Computes the storage requirements (in bytes) of the argument.
+   -- The value of the argument is not used.
+
+   alignment   :: a -> Int
+   -- ^ Computes the alignment constraint of the argument.  An
+   -- alignment constraint @x@ is fulfilled by any address divisible
+   -- by @x@.  The value of the argument is not used.
+
+   peekElemOff :: Ptr a -> Int      -> IO a
+   -- ^       Read a value from a memory area regarded as an array
+   --         of values of the same kind.  The first argument specifies
+   --         the start address of the array and the second the index into
+   --         the array (the first element of the array has index
+   --         @0@).  The following equality holds,
+   -- 
+   -- > peekElemOff addr idx = IOExts.fixIO $ \result ->
+   -- >   peek (addr `plusPtr` (idx * sizeOf result))
+   --
+   --         Note that this is only a specification, not
+   --         necessarily the concrete implementation of the
+   --         function.
+
+   pokeElemOff :: Ptr a -> Int -> a -> IO ()
+   -- ^       Write a value to a memory area regarded as an array of
+   --         values of the same kind.  The following equality holds:
+   -- 
+   -- > pokeElemOff addr idx x = 
+   -- >   poke (addr `plusPtr` (idx * sizeOf x)) x
+
+   peekByteOff :: Ptr b -> Int      -> IO a
+   -- ^       Read a value from a memory location given by a base
+   --         address and offset.  The following equality holds:
+   --
+   -- > peekByteOff addr off = peek (addr `plusPtr` off)
+
+   pokeByteOff :: Ptr b -> Int -> a -> IO ()
+   -- ^       Write a value to a memory location given by a base
+   --         address and offset.  The following equality holds:
+   --
+   -- > pokeByteOff addr off x = poke (addr `plusPtr` off) x
+  
+   peek        :: Ptr a      -> IO a
+   -- ^ Read a value from the given memory location.
+   --
+   --  Note that the peek and poke functions might require properly
+   --  aligned addresses to function correctly.  This is architecture
+   --  dependent; thus, portable code should ensure that when peeking or
+   --  poking values of some type @a@, the alignment
+   --  constraint for @a@, as given by the function
+   --  'alignment' is fulfilled.
+
+   poke        :: Ptr a -> a -> IO ()
+   -- ^ Write the given value to the given memory location.  Alignment
+   -- restrictions might apply; see 'peek'.
+ 
+   -- circular default instances
+#ifdef __GLASGOW_HASKELL__
+   peekElemOff = peekElemOff_ undefined
+      where peekElemOff_ :: a -> Ptr a -> Int -> IO a
+            peekElemOff_ undef ptr off = peekByteOff ptr (off * sizeOf undef)
+#else
+   peekElemOff ptr off = peekByteOff ptr (off * sizeOfPtr ptr undefined)
+#endif
+   pokeElemOff ptr off val = pokeByteOff ptr (off * sizeOf val) val
+
+   peekByteOff ptr off = peek (ptr `plusPtr` off)
+   pokeByteOff ptr off = poke (ptr `plusPtr` off)
+
+   peek ptr = peekElemOff ptr 0
+   poke ptr = pokeElemOff ptr 0
+
+#ifndef __GLASGOW_HASKELL__
+sizeOfPtr :: Storable a => Ptr a -> a -> Int
+sizeOfPtr px x = sizeOf x
+#endif
+
+-- System-dependent, but rather obvious instances
+
+instance Storable Bool where
+   sizeOf _          = sizeOf (undefined::HTYPE_INT)
+   alignment _       = alignment (undefined::HTYPE_INT)
+   peekElemOff p i   = liftM (/= (0::HTYPE_INT)) $ peekElemOff (castPtr p) i
+   pokeElemOff p i x = pokeElemOff (castPtr p) i (if x then 1 else 0::HTYPE_INT)
+
+#define STORABLE(T,size,align,read,write)       \
+instance Storable (T) where {                   \
+    sizeOf    _ = size;                         \
+    alignment _ = align;                        \
+    peekElemOff = read;                         \
+    pokeElemOff = write }
+
+#ifdef __GLASGOW_HASKELL__
+STORABLE(Char,SIZEOF_INT32,ALIGNMENT_INT32,
+         readWideCharOffPtr,writeWideCharOffPtr)
+#elif defined(__HUGS__)
+STORABLE(Char,SIZEOF_HSCHAR,ALIGNMENT_HSCHAR,
+         readCharOffPtr,writeCharOffPtr)
+#endif
+
+STORABLE(Int,SIZEOF_HSINT,ALIGNMENT_HSINT,
+         readIntOffPtr,writeIntOffPtr)
+
+#ifndef __NHC__
+STORABLE(Word,SIZEOF_HSWORD,ALIGNMENT_HSWORD,
+         readWordOffPtr,writeWordOffPtr)
+#endif
+
+STORABLE((Ptr a),SIZEOF_HSPTR,ALIGNMENT_HSPTR,
+         readPtrOffPtr,writePtrOffPtr)
+
+STORABLE((FunPtr a),SIZEOF_HSFUNPTR,ALIGNMENT_HSFUNPTR,
+         readFunPtrOffPtr,writeFunPtrOffPtr)
+
+STORABLE((StablePtr a),SIZEOF_HSSTABLEPTR,ALIGNMENT_HSSTABLEPTR,
+         readStablePtrOffPtr,writeStablePtrOffPtr)
+
+STORABLE(Float,SIZEOF_HSFLOAT,ALIGNMENT_HSFLOAT,
+         readFloatOffPtr,writeFloatOffPtr)
+
+STORABLE(Double,SIZEOF_HSDOUBLE,ALIGNMENT_HSDOUBLE,
+         readDoubleOffPtr,writeDoubleOffPtr)
+
+STORABLE(Word8,SIZEOF_WORD8,ALIGNMENT_WORD8,
+         readWord8OffPtr,writeWord8OffPtr)
+
+STORABLE(Word16,SIZEOF_WORD16,ALIGNMENT_WORD16,
+         readWord16OffPtr,writeWord16OffPtr)
+
+STORABLE(Word32,SIZEOF_WORD32,ALIGNMENT_WORD32,
+         readWord32OffPtr,writeWord32OffPtr)
+
+STORABLE(Word64,SIZEOF_WORD64,ALIGNMENT_WORD64,
+         readWord64OffPtr,writeWord64OffPtr)
+
+STORABLE(Int8,SIZEOF_INT8,ALIGNMENT_INT8,
+         readInt8OffPtr,writeInt8OffPtr)
+
+STORABLE(Int16,SIZEOF_INT16,ALIGNMENT_INT16,
+         readInt16OffPtr,writeInt16OffPtr)
+
+STORABLE(Int32,SIZEOF_INT32,ALIGNMENT_INT32,
+         readInt32OffPtr,writeInt32OffPtr)
+
+STORABLE(Int64,SIZEOF_INT64,ALIGNMENT_INT64,
+         readInt64OffPtr,writeInt64OffPtr)
+
+#endif
+
+{-# LANGUAGE CPP, NoImplicitPrelude #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Foreign.StablePtr
+-- Copyright   :  (c) The University of Glasgow 2001
+-- License     :  BSD-style (see the file libraries/base/LICENSE)
+-- 
+-- Maintainer  :  ffi@haskell.org
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- This module is part of the Foreign Function Interface (FFI) and will usually
+-- be imported via the module "Foreign".
+--
+-----------------------------------------------------------------------------
+
+
+module Foreign.StablePtr
+        ( -- * Stable references to Haskell values
+          StablePtr          -- abstract
+        , newStablePtr       -- :: a -> IO (StablePtr a)
+        , deRefStablePtr     -- :: StablePtr a -> IO a
+        , freeStablePtr      -- :: StablePtr a -> IO ()
+        , castStablePtrToPtr -- :: StablePtr a -> Ptr ()
+        , castPtrToStablePtr -- :: Ptr () -> StablePtr a
+        , -- ** The C-side interface
+
+          -- $cinterface
+        ) where
+
+#ifdef __GLASGOW_HASKELL__
+import GHC.Stable
+#endif
+
+#ifdef __HUGS__
+import Hugs.StablePtr
+#endif
+
+#ifdef __NHC__
+import NHC.FFI
+  ( StablePtr
+  , newStablePtr
+  , deRefStablePtr
+  , freeStablePtr
+  , castStablePtrToPtr
+  , castPtrToStablePtr
+  )
+#endif
+
+-- $cinterface
+--
+-- The following definition is available to C programs inter-operating with
+-- Haskell code when including the header @HsFFI.h@.
+--
+-- > typedef void *HsStablePtr;  /* C representation of a StablePtr */
+--
+-- Note that no assumptions may be made about the values representing stable
+-- pointers.  In fact, they need not even be valid memory addresses.  The only
+-- guarantee provided is that if they are passed back to Haskell land, the
+-- function 'deRefStablePtr' will be able to reconstruct the
+-- Haskell value referred to by the stable pointer.
+
+{-# LANGUAGE CPP
+           , NoImplicitPrelude
+           , ForeignFunctionInterface
+           , MagicHash
+           , GeneralizedNewtypeDeriving
+  #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Foreign.Ptr
+-- Copyright   :  (c) The FFI task force 2001
+-- License     :  BSD-style (see the file libraries/base/LICENSE)
+-- 
+-- Maintainer  :  ffi@haskell.org
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- This module provides typed pointers to foreign data.  It is part
+-- of the Foreign Function Interface (FFI) and will normally be
+-- imported via the "Foreign" module.
+--
+-----------------------------------------------------------------------------
+
+module Foreign.Ptr (
+
+    -- * Data pointers
+
+    Ptr,      -- data Ptr a
+    nullPtr,      -- :: Ptr a
+    castPtr,      -- :: Ptr a -> Ptr b
+    plusPtr,      -- :: Ptr a -> Int -> Ptr b
+    alignPtr,     -- :: Ptr a -> Int -> Ptr a
+    minusPtr,     -- :: Ptr a -> Ptr b -> Int
+
+    -- * Function pointers
+
+    FunPtr,      -- data FunPtr a
+    nullFunPtr,      -- :: FunPtr a
+    castFunPtr,      -- :: FunPtr a -> FunPtr b
+    castFunPtrToPtr, -- :: FunPtr a -> Ptr b
+    castPtrToFunPtr, -- :: Ptr a -> FunPtr b
+
+    freeHaskellFunPtr, -- :: FunPtr a -> IO ()
+    -- Free the function pointer created by foreign export dynamic.
+
+#ifndef __NHC__
+    -- * Integral types with lossless conversion to and from pointers
+    IntPtr,
+    ptrToIntPtr,
+    intPtrToPtr,
+    WordPtr,
+    ptrToWordPtr,
+    wordPtrToPtr
+#endif
+ ) where
+
+#ifdef __GLASGOW_HASKELL__
+import GHC.Ptr
+import GHC.Base
+import GHC.Num
+import GHC.Read
+import GHC.Real
+import GHC.Show
+import GHC.Enum
+import GHC.Word         ( Word(..) )
+
+-- import Data.Int
+import Data.Word
+#else
+import Control.Monad    ( liftM )
+import Foreign.C.Types
+#endif
+
+import Data.Bits
+import Data.Typeable
+import Foreign.Storable ( Storable(..) )
+
+#ifdef __NHC__
+import NHC.FFI
+  ( Ptr
+  , nullPtr
+  , castPtr
+  , plusPtr
+  , alignPtr
+  , minusPtr
+  , FunPtr
+  , nullFunPtr
+  , castFunPtr
+  , castFunPtrToPtr
+  , castPtrToFunPtr
+  , freeHaskellFunPtr
+  )
+#endif
+
+#ifdef __HUGS__
+import Hugs.Ptr
+#endif
+
+#ifdef __GLASGOW_HASKELL__
+-- | Release the storage associated with the given 'FunPtr', which
+-- must have been obtained from a wrapper stub.  This should be called
+-- whenever the return value from a foreign import wrapper function is
+-- no longer required; otherwise, the storage it uses will leak.
+foreign import ccall unsafe "freeHaskellFunctionPtr"
+    freeHaskellFunPtr :: FunPtr a -> IO ()
+#endif
+
+#ifndef __NHC__
+# include "HsBaseConfig.h"
+# include "CTypes.h"
+
+# ifdef __GLASGOW_HASKELL__
+-- | An unsigned integral type that can be losslessly converted to and from
+-- @Ptr@. This type is also compatible with the C99 type @uintptr_t@, and
+-- can be marshalled to and from that type safely.
+INTEGRAL_TYPE(WordPtr,tyConWordPtr,"WordPtr",Word)
+        -- Word and Int are guaranteed pointer-sized in GHC
+
+-- | A signed integral type that can be losslessly converted to and from
+-- @Ptr@.  This type is also compatible with the C99 type @intptr_t@, and
+-- can be marshalled to and from that type safely.
+INTEGRAL_TYPE(IntPtr,tyConIntPtr,"IntPtr",Int)
+        -- Word and Int are guaranteed pointer-sized in GHC
+
+-- | casts a @Ptr@ to a @WordPtr@
+ptrToWordPtr :: Ptr a -> WordPtr
+ptrToWordPtr (Ptr a#) = WordPtr (W# (int2Word# (addr2Int# a#)))
+
+-- | casts a @WordPtr@ to a @Ptr@
+wordPtrToPtr :: WordPtr -> Ptr a
+wordPtrToPtr (WordPtr (W# w#)) = Ptr (int2Addr# (word2Int# w#))
+
+-- | casts a @Ptr@ to an @IntPtr@
+ptrToIntPtr :: Ptr a -> IntPtr
+ptrToIntPtr (Ptr a#) = IntPtr (I# (addr2Int# a#))
+
+-- | casts an @IntPtr@ to a @Ptr@
+intPtrToPtr :: IntPtr -> Ptr a
+intPtrToPtr (IntPtr (I# i#)) = Ptr (int2Addr# i#)
+
+# else /* !__GLASGOW_HASKELL__ */
+
+INTEGRAL_TYPE(WordPtr,tyConWordPtr,"WordPtr",CUIntPtr)
+INTEGRAL_TYPE(IntPtr,tyConIntPtr,"IntPtr",CIntPtr)
+
+{-# CFILES cbits/PrelIOUtils.c #-}
+
+foreign import ccall unsafe "__hscore_to_uintptr"
+    ptrToWordPtr :: Ptr a -> WordPtr
+
+foreign import ccall unsafe "__hscore_from_uintptr"
+    wordPtrToPtr :: WordPtr -> Ptr a
+
+foreign import ccall unsafe "__hscore_to_intptr"
+    ptrToIntPtr :: Ptr a -> IntPtr
+
+foreign import ccall unsafe "__hscore_from_intptr"
+    intPtrToPtr :: IntPtr -> Ptr a
+
+# endif /* !__GLASGOW_HASKELL__ */
+#endif /* !__NHC_ */
+
+{-# LANGUAGE CPP, NoImplicitPrelude #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Foreign.Marshal
+-- Copyright   :  (c) The FFI task force 2003
+-- License     :  BSD-style (see the file libraries/base/LICENSE)
+-- 
+-- Maintainer  :  ffi@haskell.org
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- Marshalling support
+--
+-----------------------------------------------------------------------------
+
+module Foreign.Marshal
+        (
+         -- | The module "Foreign.Marshal" re-exports the other modules in the
+         -- @Foreign.Marshal@ hierarchy:
+          module Foreign.Marshal.Alloc
+        , module Foreign.Marshal.Array
+        , module Foreign.Marshal.Error
+        , module Foreign.Marshal.Pool
+        , module Foreign.Marshal.Utils
+         -- | and provides one function:
+        , unsafeLocalState
+        ) where
+
+import Foreign.Marshal.Alloc
+import Foreign.Marshal.Array
+import Foreign.Marshal.Error
+import Foreign.Marshal.Pool
+import Foreign.Marshal.Utils
+
+#ifdef __GLASGOW_HASKELL__
+import GHC.IO
+#else
+import System.IO.Unsafe
+#endif
+
+{- |
+Sometimes an external entity is a pure function, except that it passes
+arguments and/or results via pointers.  The function
+@unsafeLocalState@ permits the packaging of such entities as pure
+functions.  
+
+The only IO operations allowed in the IO action passed to
+@unsafeLocalState@ are (a) local allocation (@alloca@, @allocaBytes@
+and derived operations such as @withArray@ and @withCString@), and (b)
+pointer operations (@Foreign.Storable@ and @Foreign.Ptr@) on the
+pointers to local storage, and (c) foreign functions whose only
+observable effect is to read and/or write the locally allocated
+memory.  Passing an IO operation that does not obey these rules
+results in undefined behaviour.
+
+It is expected that this operation will be
+replaced in a future revision of Haskell.
+-}
+unsafeLocalState :: IO a -> a
+unsafeLocalState = unsafePerformIO
+
+{-# LANGUAGE CPP, NoImplicitPrelude #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Foreign.ForeignPtr
+-- Copyright   :  (c) The University of Glasgow 2001
+-- License     :  BSD-style (see the file libraries/base/LICENSE)
+-- 
+-- Maintainer  :  ffi@haskell.org
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- The 'ForeignPtr' type and operations.  This module is part of the
+-- Foreign Function Interface (FFI) and will usually be imported via
+-- the "Foreign" module.
+--
+-----------------------------------------------------------------------------
+
+module Foreign.ForeignPtr
+        ( 
+        -- * Finalised data pointers
+          ForeignPtr
+        , FinalizerPtr
+#if defined(__HUGS__) || defined(__GLASGOW_HASKELL__)
+        , FinalizerEnvPtr
+#endif
+        -- ** Basic operations
+        , newForeignPtr
+        , newForeignPtr_
+        , addForeignPtrFinalizer
+#if defined(__HUGS__) || defined(__GLASGOW_HASKELL__)
+        , newForeignPtrEnv
+        , addForeignPtrFinalizerEnv
+#endif
+        , withForeignPtr
+
+#ifdef __GLASGOW_HASKELL__
+        , finalizeForeignPtr
+#endif
+
+        -- ** Low-level operations
+        , unsafeForeignPtrToPtr
+        , touchForeignPtr
+        , castForeignPtr
+
+        -- ** Allocating managed memory
+        , mallocForeignPtr
+        , mallocForeignPtrBytes
+        , mallocForeignPtrArray
+        , mallocForeignPtrArray0
+        ) 
+        where
+
+import Foreign.Ptr
+
+#ifdef __NHC__
+import NHC.FFI
+  ( ForeignPtr
+  , FinalizerPtr
+  , newForeignPtr
+  , newForeignPtr_
+  , addForeignPtrFinalizer
+  , withForeignPtr
+  , unsafeForeignPtrToPtr
+  , touchForeignPtr
+  , castForeignPtr
+  , Storable(sizeOf)
+  , malloc, mallocBytes, finalizerFree
+  )
+#endif
+
+#ifdef __HUGS__
+import Hugs.ForeignPtr
+#endif
+
+#ifndef __NHC__
+import Foreign.Storable ( Storable(sizeOf) )
+#endif
+
+#ifdef __GLASGOW_HASKELL__
+import GHC.Base
+-- import GHC.IO
+import GHC.Num
+import GHC.Err          ( undefined )
+import GHC.ForeignPtr
+#endif
+
+#if !defined(__NHC__) && !defined(__GLASGOW_HASKELL__)
+import Foreign.Marshal.Alloc    ( malloc, mallocBytes, finalizerFree )
+
+instance Eq (ForeignPtr a) where 
+    p == q  =  unsafeForeignPtrToPtr p == unsafeForeignPtrToPtr q
+
+instance Ord (ForeignPtr a) where 
+    compare p q  =  compare (unsafeForeignPtrToPtr p) (unsafeForeignPtrToPtr q)
+
+instance Show (ForeignPtr a) where
+    showsPrec p f = showsPrec p (unsafeForeignPtrToPtr f)
+#endif
+
+
+#ifndef __NHC__
+newForeignPtr :: FinalizerPtr a -> Ptr a -> IO (ForeignPtr a)
+-- ^Turns a plain memory reference into a foreign pointer, and
+-- associates a finalizer with the reference.  The finalizer will be
+-- executed after the last reference to the foreign object is dropped.
+-- There is no guarantee of promptness, however the finalizer will be
+-- executed before the program exits.
+newForeignPtr finalizer p
+  = do fObj <- newForeignPtr_ p
+       addForeignPtrFinalizer finalizer fObj
+       return fObj
+
+withForeignPtr :: ForeignPtr a -> (Ptr a -> IO b) -> IO b
+-- ^This is a way to look at the pointer living inside a
+-- foreign object.  This function takes a function which is
+-- applied to that pointer. The resulting 'IO' action is then
+-- executed. The foreign object is kept alive at least during
+-- the whole action, even if it is not used directly
+-- inside. Note that it is not safe to return the pointer from
+-- the action and use it after the action completes. All uses
+-- of the pointer should be inside the
+-- 'withForeignPtr' bracket.  The reason for
+-- this unsafeness is the same as for
+-- 'unsafeForeignPtrToPtr' below: the finalizer
+-- may run earlier than expected, because the compiler can only
+-- track usage of the 'ForeignPtr' object, not
+-- a 'Ptr' object made from it.
+--
+-- This function is normally used for marshalling data to
+-- or from the object pointed to by the
+-- 'ForeignPtr', using the operations from the
+-- 'Storable' class.
+withForeignPtr fo io
+  = do r <- io (unsafeForeignPtrToPtr fo)
+       touchForeignPtr fo
+       return r
+#endif /* ! __NHC__ */
+
+#if defined(__HUGS__) || defined(__GLASGOW_HASKELL__)
+-- | This variant of 'newForeignPtr' adds a finalizer that expects an
+-- environment in addition to the finalized pointer.  The environment
+-- that will be passed to the finalizer is fixed by the second argument to
+-- 'newForeignPtrEnv'.
+newForeignPtrEnv ::
+    FinalizerEnvPtr env a -> Ptr env -> Ptr a -> IO (ForeignPtr a)
+newForeignPtrEnv finalizer env p
+  = do fObj <- newForeignPtr_ p
+       addForeignPtrFinalizerEnv finalizer env fObj
+       return fObj
+#endif /* __HUGS__ */
+
+#ifndef __GLASGOW_HASKELL__
+mallocForeignPtr :: Storable a => IO (ForeignPtr a)
+mallocForeignPtr = do
+  r <- malloc
+  newForeignPtr finalizerFree r
+
+mallocForeignPtrBytes :: Int -> IO (ForeignPtr a)
+mallocForeignPtrBytes n = do
+  r <- mallocBytes n
+  newForeignPtr finalizerFree r
+#endif /* !__GLASGOW_HASKELL__ */
+
+-- | This function is similar to 'Foreign.Marshal.Array.mallocArray',
+-- but yields a memory area that has a finalizer attached that releases
+-- the memory area.  As with 'mallocForeignPtr', it is not guaranteed that
+-- the block of memory was allocated by 'Foreign.Marshal.Alloc.malloc'.
+mallocForeignPtrArray :: Storable a => Int -> IO (ForeignPtr a)
+mallocForeignPtrArray  = doMalloc undefined
+  where
+    doMalloc            :: Storable b => b -> Int -> IO (ForeignPtr b)
+    doMalloc dummy size  = mallocForeignPtrBytes (size * sizeOf dummy)
+
+-- | This function is similar to 'Foreign.Marshal.Array.mallocArray0',
+-- but yields a memory area that has a finalizer attached that releases
+-- the memory area.  As with 'mallocForeignPtr', it is not guaranteed that
+-- the block of memory was allocated by 'Foreign.Marshal.Alloc.malloc'.
+mallocForeignPtrArray0      :: Storable a => Int -> IO (ForeignPtr a)
+mallocForeignPtrArray0 size  = mallocForeignPtrArray (size + 1)
+
+{-# LANGUAGE CPP, NoImplicitPrelude #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Foreign.Concurrent
+-- Copyright   :  (c) The University of Glasgow 2003
+-- License     :  BSD-style (see the file libraries/base/LICENSE)
+-- 
+-- Maintainer  :  ffi@haskell.org
+-- Stability   :  provisional
+-- Portability :  non-portable (requires concurrency)
+--
+-- FFI datatypes and operations that use or require concurrency (GHC only).
+--
+-----------------------------------------------------------------------------
+
+module Foreign.Concurrent
+  (
+        -- * Concurrency-based 'ForeignPtr' operations
+
+        -- | These functions generalize their namesakes in the portable
+        -- "Foreign.ForeignPtr" module by allowing arbitrary 'IO' actions
+        -- as finalizers.  These finalizers necessarily run in a separate
+        -- thread, cf. /Destructors, Finalizers and Synchronization/,
+        -- by Hans Boehm, /POPL/, 2003.
+
+        newForeignPtr,
+        addForeignPtrFinalizer,
+  ) where
+
+#ifdef __GLASGOW_HASKELL__
+import GHC.IO           ( IO )
+import GHC.Ptr          ( Ptr )
+import GHC.ForeignPtr   ( ForeignPtr )
+import qualified GHC.ForeignPtr
+#endif
+
+#ifdef __GLASGOW_HASKELL__
+newForeignPtr :: Ptr a -> IO () -> IO (ForeignPtr a)
+-- ^Turns a plain memory reference into a foreign object by associating
+-- a finalizer - given by the monadic operation - with the reference.
+-- The finalizer will be executed after the last reference to the
+-- foreign object is dropped.  There is no guarantee of promptness, and
+-- in fact there is no guarantee that the finalizer will eventually
+-- run at all.
+newForeignPtr = GHC.ForeignPtr.newConcForeignPtr
+
+addForeignPtrFinalizer :: ForeignPtr a -> IO () -> IO ()
+-- ^This function adds a finalizer to the given 'ForeignPtr'.
+-- The finalizer will run after the last reference to the foreign object
+-- is dropped, but /before/ all previously registered finalizers for the
+-- same object.
+addForeignPtrFinalizer = GHC.ForeignPtr.addForeignPtrConcFinalizer
+#endif
+
+
