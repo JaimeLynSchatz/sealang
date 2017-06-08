@@ -436,21 +436,7 @@ class Storable a where
    peekElemOff :: Ptr a -> Int      -> IO a
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
    pokeElemOff :: Ptr a -> Int -> a -> IO ()
-    
-    
-    
     
     
 
